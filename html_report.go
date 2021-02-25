@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"os"
+	"sort"
 	"strings"
+	"time"
 )
 
 type Table struct {
@@ -20,12 +22,32 @@ type TableRow struct {
 	License					License
 }
 
+type alphabetically []TableRow
+
+func (s alphabetically) Len() int {
+  return len(s)
+}
+func (s alphabetically) Swap(i, j int) {
+  s[i], s[j] = s[j], s[i]
+}
+func (s alphabetically) Less(i, j int) bool {
+	if s[i].Project == s[j].Project {
+		if s[i].Dependency.Name == s[j].Dependency.Name {
+			return s[i].Dependency.Version < s[j].Dependency.Version
+		}
+
+		return s[i].Dependency.Name < s[j].Dependency.Name
+	}
+
+	return s[i].Project < s[j].Project
+}
+
 type PackageDetail struct {
 	EcosystemName	string
 	Dependencies	map[Dependency]DependencyExtInfo
 }
 
-func GenerateReport(filename string, groupName string, usageInfo map[string][]Dependency, dependencyInfo map[string]map[Dependency]DependencyExtInfo) error {
+func GenerateReport(filename string, documentTitle string, usageInfo map[string][]Dependency, dependencyInfo map[string]map[Dependency]DependencyExtInfo) error {
 
 	var table Table
 	// Compile dependency information by project
@@ -52,7 +74,7 @@ func GenerateReport(filename string, groupName string, usageInfo map[string][]De
 	w := bufio.NewWriter(f)
 	defer w.Flush()
 
-	writeHtmlHeader(w, groupName)
+	writeHtmlHeader(w, documentTitle)
 
 	for _, line := range table.GetHtmlLines() {
 		w.WriteString(line + "\n")
@@ -76,6 +98,7 @@ func (table *Table) GetHtmlLines() []string {
 	var tableLines []string
 	tableLines = append(tableLines, "<table>")
 	tableLines = append(tableLines, "<tr><th>Project</th><th>Ecosystem</th><th>Library</th><th>Version</th><th>License</th><th>Raw</th></tr>")
+	sort.Sort(alphabetically(table.Rows))
 	for _, row := range table.Rows {
 		tableLines = append(tableLines, row.BuildHtml())	
 	}
@@ -116,6 +139,7 @@ func writeHtmlHeader(writer *bufio.Writer, documentTitle string) {
 }
 
 func writeHtmlFooter(writer *bufio.Writer) {
+	writer.WriteString("<footer><p align=\"center\">Report generated " + time.Now().Format("2006-01-02 15:04:05") + "</p></footer>")
 	writer.WriteString("</body></html>\n")
 }
 

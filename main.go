@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -43,9 +44,11 @@ func main() {
 	var filename string
 	var groupname string
 	var reportname string
+	var exclude string
 	flag.StringVar(&filename, "i", "", "Specify input file name")
 	flag.StringVar(&groupname, "g", "", "Specify group name")
-	flag.StringVar(&reportname, "o", "dependency_report.md", "Specify report document name")
+	flag.StringVar(&reportname, "o", "dependency_report.html", "Specify report document name")
+	flag.StringVar(&exclude, "x", "", "Pattern for dependencies to exclude from the report")
 	flag.Parse()
 
 	if len(filename) <= 0 || len(groupname) <= 0 {
@@ -55,7 +58,7 @@ func main() {
 
 	// De-duplicated list of dependencies to look up more information on
 	dependencyTree := make(map[string]map[Dependency]DependencyExtInfo)
-	// Record which projects use which dependencies for later grouping in the report
+	// Dependencies by project name for organising the report
 	usageTree := make(map[string][]Dependency)
 	file, err := os.Open(filename)
 	check(err)
@@ -68,8 +71,7 @@ func main() {
 		}
 
 		dependency := Dependency{ Name: segments[2], Version: segments[3] }
-		// Skip internal package use - TODO: more generic exclude list rather than hard-coding streeva
-		if strings.Contains(dependency.Name, "streeva") {
+		if matched, _ := regexp.MatchString(exclude, dependency.Name); len(exclude) > 0 && matched {
 			continue
 		}
 
@@ -87,5 +89,5 @@ func main() {
 		check(err)
 	}
 
-	_ = GenerateReport(reportname, groupname, usageTree, dependencyTree)
+	_ = GenerateReport(reportname, "Dependency Report for " + groupname, usageTree, dependencyTree)
 }
