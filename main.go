@@ -1,33 +1,32 @@
 package main
 
 import (
-	"bufio"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
 )
 
 type Dependency struct {
-	Name		string
-	Version	string
+	Name    string
+	Version string
 }
 
 type License struct {
-	Type	string
-	Link	string
+	Type string
+	Link string
 }
 
 type DependencyExtInfo struct {
-	ProjectUrl								string
-	Repository								string
-	License										License
-	Description								string
-	Owners										string
-	Dependencies							[]string
-	DevelopmentDependency			bool
-	Raw												string
+	ProjectUrl            string
+	Repository            string
+	License               License
+	Description           string
+	Owners                string
+	Dependencies          []string
+	DevelopmentDependency bool
+	Raw                   string
 }
 
 const EXIT_SUCCESS = 0
@@ -42,16 +41,16 @@ func check(e error) {
 
 func main() {
 	var filename string
-	var groupname string
-	var reportname string
+	var groupName string
+	var reportName string
 	var exclude string
 	flag.StringVar(&filename, "i", "", "Specify input file name")
-	flag.StringVar(&groupname, "g", "", "Specify group name")
-	flag.StringVar(&reportname, "o", "dependency_report.html", "Specify report document name")
+	flag.StringVar(&groupName, "g", "", "Specify group name")
+	flag.StringVar(&reportName, "o", "dependency_report.html", "Specify report document name")
 	flag.StringVar(&exclude, "x", "", "Pattern for dependencies to exclude from the report")
 	flag.Parse()
 
-	if len(filename) <= 0 || len(groupname) <= 0 {
+	if len(filename) <= 0 || len(groupName) <= 0 {
 		fmt.Println("Please specify filename containing the dependency data and a group name to report the projects under")
 		os.Exit(EXIT_FAILURE)
 	}
@@ -62,25 +61,29 @@ func main() {
 	usageTree := make(map[string][]Dependency)
 	file, err := os.Open(filename)
 	check(err)
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		var segments = strings.Split(scanner.Text(), ",")
-		if len(segments) < 4 {
+	defer file.Close()
+
+	csvReader := csv.NewReader(file)
+	records, err := csvReader.ReadAll()
+	check(err)
+
+	for _, record := range records {
+		if len(record) < 4 {
 			fmt.Println("Unexpected line in input file")
 			os.Exit(EXIT_FAILURE)
 		}
 
-		dependency := Dependency{ Name: segments[2], Version: segments[3] }
+		dependency := Dependency{Name: record[2], Version: record[3]}
 		if matched, _ := regexp.MatchString(exclude, dependency.Name); len(exclude) > 0 && matched {
 			continue
 		}
 
-		if _, ok := dependencyTree[segments[1]]; !ok {
-			dependencyTree[segments[1]] = make(map[Dependency]DependencyExtInfo)
+		if _, ok := dependencyTree[record[1]]; !ok {
+			dependencyTree[record[1]] = make(map[Dependency]DependencyExtInfo)
 		}
 
-		dependencyTree[segments[1]][dependency] = DependencyExtInfo{}
-		usageTree[segments[0]] = append(usageTree[segments[0]], dependency)
+		dependencyTree[record[1]][dependency] = DependencyExtInfo{}
+		usageTree[record[0]] = append(usageTree[record[0]], dependency)
 	}
 
 	for ecosystem, dependencyMap := range dependencyTree {
@@ -89,5 +92,5 @@ func main() {
 		check(err)
 	}
 
-	_ = GenerateReport(reportname, "Dependency Report for " + groupname, usageTree, dependencyTree)
+	_ = GenerateReport(reportName, "Dependency Report for "+groupName, usageTree, dependencyTree)
 }

@@ -3,32 +3,32 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"path/filepath"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 )
 
 type Table struct {
-	Rows	[]TableRow
+	Rows []TableRow
 }
 
 type TableRow struct {
-	Project					string
-	ProjectUrl			string
-	Dependency			Dependency
-	Ecosystem				string
-	License					License
+	Project    string
+	ProjectUrl string
+	Dependency Dependency
+	Ecosystem  string
+	License    License
 }
 
 type alphabetically []TableRow
 
 func (s alphabetically) Len() int {
-  return len(s)
+	return len(s)
 }
 func (s alphabetically) Swap(i, j int) {
-  s[i], s[j] = s[j], s[i]
+	s[i], s[j] = s[j], s[i]
 }
 func (s alphabetically) Less(i, j int) bool {
 	if s[i].Project == s[j].Project {
@@ -43,8 +43,8 @@ func (s alphabetically) Less(i, j int) bool {
 }
 
 type PackageDetail struct {
-	EcosystemName	string
-	Dependencies	map[Dependency]DependencyExtInfo
+	EcosystemName string
+	Dependencies  map[Dependency]DependencyExtInfo
 }
 
 func GenerateReport(filename string, documentTitle string, usageInfo map[string][]Dependency, dependencyInfo map[string]map[Dependency]DependencyExtInfo) error {
@@ -100,7 +100,7 @@ func (table *Table) GetHtmlLines() []string {
 	tableLines = append(tableLines, "<tr><th>Project</th><th>Ecosystem</th><th>Library</th><th>Version</th><th>License</th><th>Raw</th></tr>")
 	sort.Sort(alphabetically(table.Rows))
 	for _, row := range table.Rows {
-		tableLines = append(tableLines, row.BuildHtml())	
+		tableLines = append(tableLines, row.BuildHtml())
 	}
 	tableLines = append(tableLines, "</table>")
 	return tableLines
@@ -120,7 +120,7 @@ func (row *TableRow) BuildHtml() string {
 
 func (pkg *PackageDetail) GetHtmlLines() []string {
 	var lines []string
-	lines = append(lines, "<h2>Package Details from " + pkg.EcosystemName + "<h2>")
+	lines = append(lines, "<h2>Package Details from "+pkg.EcosystemName+"<h2>")
 	for dependency, dependencyExtInfo := range pkg.Dependencies {
 		detailLine := fmt.Sprintf("<h3><a id=\"%[1]s\"></a>%[1]s</h3><pre>%[2]s</pre>", dependency.GetReference(), escape(dependencyExtInfo.Raw))
 		lines = append(lines, detailLine)

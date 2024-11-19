@@ -3,8 +3,9 @@ package main
 import (
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/kyoh86/go-spdx/spdx"
@@ -15,45 +16,45 @@ type Package struct {
 }
 
 type Metadata struct {
-	Id												string				`xml:"id"`
-	Version										string				`xml:"version"`
-	Title											string				`xml:"title"`
-	Authors										string				`xml:"authors"`
-	Owners										string				`xml:"owners"`
-	DevelopmentDependency			bool					`xml:"developmentDependency"`
-	License										SPDXLicense		`xml:"license"`
-	LicenseUrl								string				`xml:"licenseUrl"`
-	ProjectUrl								string				`xml:"projectUrl"`
-	Description								string				`xml:"description"`
-	Repository								Repository		`xml:"repository"`
-	Dependencies							Dependencies	`xml:"dependencies"`
+	Id                    string       `xml:"id"`
+	Version               string       `xml:"version"`
+	Title                 string       `xml:"title"`
+	Authors               string       `xml:"authors"`
+	Owners                string       `xml:"owners"`
+	DevelopmentDependency bool         `xml:"developmentDependency"`
+	License               SPDXLicense  `xml:"license"`
+	LicenseUrl            string       `xml:"licenseUrl"`
+	ProjectUrl            string       `xml:"projectUrl"`
+	Description           string       `xml:"description"`
+	Repository            Repository   `xml:"repository"`
+	Dependencies          Dependencies `xml:"dependencies"`
 }
 
 type SPDXLicense struct {
-	Identifier	string `xml:",chardata"`
-	Type				string `xml:"type,attr"`
+	Identifier string `xml:",chardata"`
+	Type       string `xml:"type,attr"`
 }
 
 type Repository struct {
-	Type		string	`xml:"type,attr"`
-	Url			string	`xml:"url,attr"`
-	Branch	string	`xml:"branch,attr"`
-	Commit	string	`xml:"commit,attr"`
+	Type   string `xml:"type,attr"`
+	Url    string `xml:"url,attr"`
+	Branch string `xml:"branch,attr"`
+	Commit string `xml:"commit,attr"`
 }
 
 type Dependencies struct {
-	Dependencies	[]PackageDependency	`xml:"dependency"`
-	Groups				[]Group							`xml:"group"`
+	Dependencies []PackageDependency `xml:"dependency"`
+	Groups       []Group             `xml:"group"`
 }
 
 type Group struct {
-	TargetFramework	string							`xml:"targetFramework,attr"`
-	Dependencies		[]PackageDependency	`xml:"dependency"`
+	TargetFramework string              `xml:"targetFramework,attr"`
+	Dependencies    []PackageDependency `xml:"dependency"`
 }
 
 type PackageDependency struct {
-	Id			string	`xml:"id,attr"`
-	Version	string	`xml:"version,attr"`
+	Id      string `xml:"id,attr"`
+	Version string `xml:"version,attr"`
 }
 
 func ReadDependencyExtInfo(dependencyMap map[Dependency]DependencyExtInfo) error {
@@ -70,19 +71,21 @@ func ReadDependencyExtInfo(dependencyMap map[Dependency]DependencyExtInfo) error
 }
 
 func ReadExtInfoFromNuGet(dependency Dependency) (DependencyExtInfo, error) {
-	client := &http.Client{ Timeout: time.Second * 10 }
-	response, err := client.Get(fmt.Sprintf("https://api.nuget.org/v3-flatcontainer/%[1]s/%[2]s/%[1]s.nuspec", dependency.Name, dependency.Version))
-	if err != nil{
+	client := &http.Client{Timeout: time.Second * 10}
+	url := fmt.Sprintf("https://api.nuget.org/v3-flatcontainer/%[1]s/%[2]s/%[1]s.nuspec", strings.ToLower(dependency.Name), strings.ToLower(dependency.Version))
+	response, err := client.Get(url)
+	if err != nil {
 		return DependencyExtInfo{}, err
 	}
 
-	bodyText, err := ioutil.ReadAll(response.Body)
-	if err != nil{
+	bodyText, err := io.ReadAll(response.Body)
+	if err != nil {
 		return DependencyExtInfo{}, err
 	}
 
 	var pkg Package
 	xml.Unmarshal(bodyText, &pkg)
+
 	license, licenseLink, _ := ResolveLicense(pkg.Metadata)
 	owners := pkg.Metadata.Owners
 	if len(owners) <= 0 {
@@ -90,13 +93,13 @@ func ReadExtInfoFromNuGet(dependency Dependency) (DependencyExtInfo, error) {
 	}
 
 	var dependencyExtInfo = DependencyExtInfo{
-		Owners: owners,
-		ProjectUrl: pkg.Metadata.ProjectUrl,
-		License: License{ license, licenseLink },
-		Description: pkg.Metadata.Description,
-		Dependencies: make([]string, 0),
+		Owners:                owners,
+		ProjectUrl:            pkg.Metadata.ProjectUrl,
+		License:               License{license, licenseLink},
+		Description:           pkg.Metadata.Description,
+		Dependencies:          make([]string, 0),
 		DevelopmentDependency: pkg.Metadata.DevelopmentDependency,
-		Raw: string(bodyText),
+		Raw:                   string(bodyText),
 	}
 
 	return dependencyExtInfo, nil
@@ -104,7 +107,7 @@ func ReadExtInfoFromNuGet(dependency Dependency) (DependencyExtInfo, error) {
 
 func ResolveLicense(metadata Metadata) (string, string, error) {
 	var licenseName string
-	var licenseUrl	string
+	var licenseUrl string
 	if metadata.License.Type == "expression" {
 		tree, err := spdx.Parse(metadata.License.Identifier)
 		if err != nil {
@@ -116,7 +119,7 @@ func ResolveLicense(metadata Metadata) (string, string, error) {
 		if err != nil {
 			return "", "", err
 		}
-		
+
 		licenseName = l.Name
 		licenseUrl = l.URL
 	} else if len(metadata.LicenseUrl) > 0 {
